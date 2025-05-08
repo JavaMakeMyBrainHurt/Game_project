@@ -135,7 +135,7 @@ while run:
     draw_health_bar(player_1.health, 20, 20)
     draw_health_bar(player_2.health, 1500, 20)
     for event in pygame.event.get():
-        if event.type == pygame.QUIT:
+        if event.type == pygame.QUIT or player_2.health <= 0 or player_1.health <= 0:
             run = False
 
     pygame.display.update()
