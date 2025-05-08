@@ -19,10 +19,8 @@ def draw_health_bar(health, x, y):
   pygame.draw.rect(screen, (255, 255, 0), (x, y, 400 * ratio, 30))
 
 class Player:
-    "Class for player object."
-
     def __init__(self, x, y):
-        self.rect = pygame.Rect(x, y, 160, 360)
+        self.rect = pygame.Rect(x, y, 256, 256)
         self.flip = False
         self.speed = 15
         self.floor = y
@@ -31,28 +29,66 @@ class Player:
         self.jump = False
         self.attacking = False
         self.health = 100
-        self.attack_cooldown = 0
+        self.stagger_timer = 0
+        self.attack_timer = 0
+        self.attack_cooldown = 15
+        self.attack_rect = None  # for drawing
+        self.blocking = False
     def draw(self):
         pygame.draw.rect(screen, (255, 0, 0), self.rect)
+        if self.attack_rect:
+            pygame.draw.rect(screen, (0, 255, 0), self.attack_rect)
 
     def attack(self, target):
         self.attacking = True
-        attacking_rect = pygame.Rect(self.rect.centerx - (2 * self.rect.width * self.flip), self.rect.y + 50 , 1.5 * self.rect.width, self.rect.height // 4)
-        if attacking_rect.colliderect(target.rect):
-            target.health -= 10
-        pygame.draw.rect(screen, (0, 255, 0), attacking_rect)
+        self.attack_timer = self.attack_cooldown  # Start cooldown
 
-    def move(self, keys, left, right, jump, attack, target):
+        # hitbox
+        x = self.rect.centerx + 100 if not self.flip else self.rect.centerx - 100 - 180
+        self.attack_rect = pygame.Rect(x, self.rect.top + 100, 180, 80)
+
+        # Check hit
+        if self.attack_rect.colliderect(target.rect) and not target.blocking:
+            target.health -= 10
+
+            # Knockback
+            knockback = 100
+            if self.flip:
+                target.rect.x -= knockback
+            else:
+                target.rect.x += knockback
+
+            #stagger
+            target.stagger_timer = self.attack_cooldown
+    def block(self):
+        if not self.blocking and not self.attacking:
+            self.blocking = True
+            self.block_timer = self.block_duration
+
+    def move(self, keys, left, right, jump, attack, target, block):
         vel_x = 0
         gravity = 4
 
-        if not self.attacking:  # ei saa midagi teha enne kui tegevus on lõppenud
+        #stagger
+        if self.stagger_timer > 0:
+            self.stagger_timer -= 1
+            self.attacking = True
+            return
+
+        #cooldown
+        if self.attack_timer > 0:
+            self.attack_timer -= 1
+            self.attacking = True
+        else:
+            self.attacking = False
+            self.attack_rect = None  # clear attack hitbox
+
+        if not self.attacking:
             if keys[left]:
                 vel_x -= self.speed
             if keys[right]:
                 vel_x += self.speed
 
-            # Jump
             if keys[jump] and not self.jump:
                 self.vel_y = self.jump_speed
                 self.jump = True
@@ -61,10 +97,10 @@ class Player:
             self.rect.x += vel_x
             self.rect.y += self.vel_y
 
-            # Attack
             if keys[attack]:
                 self.attack(target)
-        # Inbounds check
+
+        # kuljed
         if self.rect.left < 0:
             self.rect.left = 0
         if self.rect.right > SCREEN_WIDTH:
@@ -73,13 +109,9 @@ class Player:
             self.rect.bottom = self.floor
             self.vel_y = 0
             self.jump = False
-        #mängijad on vastakuti
-        if target.rect.centerx > self.rect.centerx:
-            self.flip = False
-        else:
-            self.flip = True
 
-
+        # Flip check
+        self.flip = target.rect.centerx < self.rect.centerx
 
 player_1 = Player(200, 900)
 player_2 = Player(1500, 900)
@@ -90,8 +122,8 @@ while run:
     bg_set()
     keys = pygame.key.get_pressed()
 
-    player_1.move(keys, pygame.K_a, pygame.K_d, pygame.K_w, pygame.K_r, player_2)
-    player_2.move(keys, pygame.K_LEFT, pygame.K_RIGHT, pygame.K_UP, pygame.K_KP1, player_1)
+    player_1.move(keys, pygame.K_a, pygame.K_d, pygame.K_w, pygame.K_r, player_2, pygame.K_t)
+    player_2.move(keys, pygame.K_LEFT, pygame.K_RIGHT, pygame.K_UP, pygame.K_KP1, player_1, pygame.K_KP2)
 
     player_1.draw()
     player_2.draw()
