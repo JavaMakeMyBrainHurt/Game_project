@@ -32,36 +32,34 @@ class Player:
         self.stagger_timer = 0
         self.attack_timer = 0
         self.attack_cooldown = 15
-        self.attack_rect = None  # for drawing
+        self.attack_rect = None
         self.blocking = False
+        self.block_duration = 30  # frames
+        self.block_timer = 0
+
     def draw(self):
         pygame.draw.rect(screen, (255, 0, 0), self.rect)
         if self.attack_rect:
             pygame.draw.rect(screen, (0, 255, 0), self.attack_rect)
+        if self.blocking:
+            pygame.draw.rect(screen, (0, 0, 255), self.rect, 5)  # Blue border for blocking
 
     def attack(self, target):
         self.attacking = True
-        self.attack_timer = self.attack_cooldown  # Start cooldown
-
-        # hitbox
+        self.attack_timer = self.attack_cooldown
         x = self.rect.centerx + 100 if not self.flip else self.rect.centerx - 100 - 180
         self.attack_rect = pygame.Rect(x, self.rect.top + 100, 180, 80)
-
-        # Check hit
         if self.attack_rect.colliderect(target.rect) and not target.blocking:
             target.health -= 10
-
-            # Knockback
             knockback = 100
             if self.flip:
                 target.rect.x -= knockback
             else:
                 target.rect.x += knockback
-
-            #stagger
             target.stagger_timer = self.attack_cooldown
+
     def block(self):
-        if not self.blocking and not self.attacking:
+        if not self.attacking and not self.blocking:
             self.blocking = True
             self.block_timer = self.block_duration
 
@@ -69,38 +67,44 @@ class Player:
         vel_x = 0
         gravity = 4
 
-        #stagger
+        # Stagger
         if self.stagger_timer > 0:
             self.stagger_timer -= 1
             self.attacking = True
             return
 
-        #cooldown
+        # Block duration logic
+        if self.blocking:
+            self.block_timer -= 1
+            if self.block_timer <= 0:
+                self.blocking = False
+            return  # Skip other actions while blocking
+
+        # Attack cooldown logic
         if self.attack_timer > 0:
             self.attack_timer -= 1
             self.attacking = True
         else:
             self.attacking = False
-            self.attack_rect = None  # clear attack hitbox
+            self.attack_rect = None
 
         if not self.attacking:
             if keys[left]:
                 vel_x -= self.speed
             if keys[right]:
                 vel_x += self.speed
-
             if keys[jump] and not self.jump:
                 self.vel_y = self.jump_speed
                 self.jump = True
-
             self.vel_y += gravity
             self.rect.x += vel_x
             self.rect.y += self.vel_y
-
             if keys[attack]:
                 self.attack(target)
+            if keys[block]:
+                self.block()
 
-        # kuljed
+        # Screen bounds
         if self.rect.left < 0:
             self.rect.left = 0
         if self.rect.right > SCREEN_WIDTH:
